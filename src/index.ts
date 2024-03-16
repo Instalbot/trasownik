@@ -1,7 +1,8 @@
 import amqplib from "amqplib";
 import { Pool } from "pg";
-
 import "dotenv/config";
+
+import logger from "./logger";
 
 //--[ ENV ]---------------------------------------------------------------------
 
@@ -27,7 +28,7 @@ let requiredKeys = [
 ].filter(key => !envKeys.includes(key));
 
 if (requiredKeys.length > 0) {
-    console.error(`.env file is missing the following keys: ${requiredKeys.join(", ")}`);
+    logger.error(`.env file is missing the following keys: ${requiredKeys.join(", ")}`);
     process.exit(1);
 };
 
@@ -47,11 +48,13 @@ async function startWorker() {
 	const queue = "botqueue";
 	channel.assertQueue(queue, { exclusive: true, durable: true });
 
-	channel.consume(queue, async msg => {
-		if (!msg.properties.correlationId) return;
-
-		console.log("Consumed message: ", msg.content.toString(), msg.properties.correlationId);
-	});
+    channel.consume(queue, async msg => {
+        if (msg !== null) {
+            if (!msg.properties.correlationId) return;
+    
+            logger.log("Consumed message: ", msg.content.toString(), msg.properties.correlationId);
+        }
+    });
 
 
 	function sendToQueue(username: string) {
@@ -59,7 +62,7 @@ async function startWorker() {
 	}
 
 	function checkQueue() {
-		console.log("Checking queue...");
+		logger.log("Checking queue...");
 		sendToQueue("babasialamak");
 	}
 
