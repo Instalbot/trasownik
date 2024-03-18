@@ -42,7 +42,7 @@ const pool = new Pool({
 
 async function startWorker() {
 	const connection = await amqplib.connect(`amqp://${env.RABBITMQ_USERNAME}:${env.RABBITMQ_PASSWORD}@${env.RABBITMQ_HOST}`);    
-	const channel = await connection.createChannel();
+	const channel = await connection.createChannel()s
 	
 	const queue = "botqueue";
 	channel.assertQueue(queue, { exclusive: true, durable: true });
@@ -53,14 +53,17 @@ async function startWorker() {
 		console.log("Consumed message: ", msg.content.toString(), msg.properties.correlationId);
 	});
 
-
-	function sendToQueue(username: string) {
-		channel.sendToQueue(queue, Buffer.from("DUPA"), { correlationId: username, replyTo: queue });
+	function sendToQueue(id: number) {
+		channel.sendToQueue(queue, Buffer.from(id.toString()), { correlationId: id, replyTo: queue });
 	}
 
 	function checkQueue() {
 		console.log("Checking queue...");
 		sendToQueue("babasialamak");
+	}
+
+	async function fetchQueue() {
+		const result = await pool.query("SELECT * FROM 
 	}
 
 	setInterval(checkQueue, 5000);
