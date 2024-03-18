@@ -3,6 +3,17 @@ import { Pool } from "pg";
 
 import "dotenv/config";
 
+//--[ INTERFACES ]--------------------------------------------------------------
+
+interface DatabaseFlagsResult {
+	userid: number
+	todo: boolean
+	hoursrange: `[${number},${number}]`
+	instaling_user: string
+	instaling_pass: string
+	error_level: number
+}
+
 //--[ ENV ]---------------------------------------------------------------------
 
 const env = process.env as {
@@ -42,31 +53,37 @@ const pool = new Pool({
 
 async function startWorker() {
 	const connection = await amqplib.connect(`amqp://${env.RABBITMQ_USERNAME}:${env.RABBITMQ_PASSWORD}@${env.RABBITMQ_HOST}`);    
-	const channel = await connection.createChannel()s
+	const channel = await connection.createChannel();
 	
-	const queue = "botqueue";
-	channel.assertQueue(queue, { exclusive: true, durable: true });
+	const queue: { [key: Date]: DatabaseFlagsResult } = {};
+	const queueName = "botqueue";
+	channel.assertQueue(queueName, { exclusive: true, durable: true });
 
-	channel.consume(queue, async msg => {
-		if (!msg.properties.correlationId) return;
+	channel.consume(queueName, async msg => {
+		if (!msg || !msg.properties.correlationId) return;
 
 		console.log("Consumed message: ", msg.content.toString(), msg.properties.correlationId);
 	});
 
-	function sendToQueue(id: number) {
-		channel.sendToQueue(queue, Buffer.from(id.toString()), { correlationId: id, replyTo: queue });
+	function sendToQueue(id: string) {
+		channel.sendToQueue(queueName, Buffer.from(id), { correlationId: id, replyTo: queueName });
 	}
 
-	function checkQueue() {
-		console.log("Checking queue...");
-		sendToQueue("babasialamak");
+	async function resetQueue() {
+		const result = await pool.query("UPDATE flags SET todo = TRUE WHERE todo = FALSE");
+		return result;
 	}
 
 	async function fetchQueue() {
-		const result = await pool.query("SELECT * FROM 
+		const result: any = await pool.query("SELECT * FROM flags WHERE todo = TRUE");
+		return result.rows as DatabaseFlagsResult[];
 	}
 
-	setInterval(checkQueue, 5000);
+	async function checkQueue() {
+		const result = await fetchQueue();
+
+		sendToQueue("babasialamak");
+	}
 }
 
 startWorker();
