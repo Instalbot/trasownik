@@ -55,8 +55,9 @@ async function startWorker() {
 	const connection = await amqplib.connect(`amqp://${env.RABBITMQ_USERNAME}:${env.RABBITMQ_PASSWORD}@${env.RABBITMQ_HOST}`);    
 	const channel = await connection.createChannel();
 	
-	const queue: { [key: Date]: DatabaseFlagsResult } = {};
+	const queue: { time: number, flags: DatabaseFlagsResult }[] = [];
 	const queueName = "botqueue";
+
 	channel.assertQueue(queueName, { exclusive: true, durable: true });
 
 	channel.consume(queueName, async msg => {
@@ -80,10 +81,35 @@ async function startWorker() {
 	}
 
 	async function checkQueue() {
-		const result = await fetchQueue();
+		const flags = await fetchQueue();
+		
+		for (const result of flags) {
+			const date = new Date();
+			const [start, end] = result.hoursrange.replace(/[\[\]]/g, "").split(",");
 
-		sendToQueue("babasialamak");
+			date.setHours(
+				// generate random hour between user specified range
+				Math.floor(Math.random() * (parseInt(end) - parseInt(start))) + parseInt(start), 
+				Math.floor(Math.random() * 59),  // generate random minute
+				Math.floor(Math.random() * 59)   // generate random second
+			);
+
+			queue.push({ time: date.getTime(), flags: result });
+		}
+
+		const currentTime = new Date().getTime()
+
+		// display all records for debuging purposes
+		for (const q of queue) {
+			if (currentTime	>= q.time) console.log("Time reached!");
+			console.log(new Date(currentTime).toLocaleTimeString("pl"), new Date(q.time).toLocaleTimeString("pl"), q.flags.instaling_user, q.flags.hoursrange, new Date(q.time - currentTime).toTimeString());
+		}
+
+			
 	}
+
+	await resetQueue();
+	await checkQueue();
 }
 
 startWorker();
