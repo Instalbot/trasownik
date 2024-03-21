@@ -61,12 +61,12 @@ async function startWorker() {
     let queue: { time: number, flags: DatabaseFlagsResult }[] = [];
     const queueName = "botqueue";
 
-    channel.assertQueue(queueName, { exclusive: true, durable: true });
+    channel.assertQueue(queueName, { durable: true });
 
     channel.consume(queueName, async msg => {
         if (!msg || !msg.properties.correlationId) return;
 
-        console.log("Consumed message: ", msg.content.toString(), msg.properties.correlationId);
+        // console.log("Consumed message: ", msg.content.toString(), msg.properties.correlationId);
     });
 
     function sendToQueue(id: string) {
@@ -98,9 +98,23 @@ async function startWorker() {
             );
 
             queue.push({ time: date.getTime(), flags: result });
+
+            logger.log("Pushed user: ", result.instaling_user, date.toLocaleTimeString("pl"));
+        }
+    }
+
+    setInterval(async () => {
+        const date = new Date();
+        const currentDay = date.getDay();
+
+        if (currentDay !== lastReset) {
+            logger.log("Reseting day");
+            lastReset = currentDay;
+            await resetQueue();
+            await checkQueue();
         }
 
-        const currentTime = new Date().getTime()
+        const currentTime = date.getTime()
         const newQueue = queue;
 
         // display all records for debuging purposes
@@ -108,24 +122,17 @@ async function startWorker() {
             if (!q) continue;
 
             if (currentTime	>= q.time) {
-                logger.log(new Date(currentTime).toLocaleTimeString("pl"), new Date(q.time).toLocaleTimeString("pl"), q.flags.instaling_user, q.flags.hoursrange);
+                logger.log(date.toLocaleTimeString("pl"), new Date(q.time).toLocaleTimeString("pl"), q.flags.instaling_user, q.flags.hoursrange);
                 sendToQueue(q.flags.userid.toString());
                 delete newQueue[newQueue.indexOf(q)];
             }
         }
 
         queue = newQueue;
-    }
-
-    setInterval(async () => {
-        const currentDay = new Date().getDay();
-        if (currentDay !== lastReset) {
-            lastReset = currentDay;
-            await resetQueue();
-        }
-
-        await checkQueue();
     }, 20000);
+
+    await resetQueue();
+    await checkQueue();
 
     logger.ready("Instalbot trasownik is ready!");
 }
