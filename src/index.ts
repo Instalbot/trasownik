@@ -105,6 +105,8 @@ async function startWorker() {
 
         // display all records for debuging purposes
         for (const q of queue) {
+            if (!q) continue;
+
             if (currentTime	>= q.time) {
                 logger.log(new Date(currentTime).toLocaleTimeString("pl"), new Date(q.time).toLocaleTimeString("pl"), q.flags.instaling_user, q.flags.hoursrange);
                 sendToQueue(q.flags.userid.toString());
