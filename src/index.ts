@@ -6,12 +6,12 @@ import "dotenv/config";
 //--[ INTERFACES ]--------------------------------------------------------------
 
 interface DatabaseFlagsResult {
-	userid: number
-	todo: boolean
-	hoursrange: `[${number},${number}]`
-	instaling_user: string
-	instaling_pass: string
-	error_level: number
+    userid: number
+    todo: boolean
+    hoursrange: `[${number},${number}]`
+    instaling_user: string
+    instaling_pass: string
+    error_level: number
 }
 
 //--[ ENV ]---------------------------------------------------------------------
@@ -52,64 +52,76 @@ const pool = new Pool({
 });
 
 async function startWorker() {
-	const connection = await amqplib.connect(`amqp://${env.RABBITMQ_USERNAME}:${env.RABBITMQ_PASSWORD}@${env.RABBITMQ_HOST}`);    
-	const channel = await connection.createChannel();
-	
-	const queue: { time: number, flags: DatabaseFlagsResult }[] = [];
-	const queueName = "botqueue";
+    const connection = await amqplib.connect(`amqp://${env.RABBITMQ_USERNAME}:${env.RABBITMQ_PASSWORD}@${env.RABBITMQ_HOST}`);
+    const channel = await connection.createChannel();
 
-	channel.assertQueue(queueName, { exclusive: true, durable: true });
+    let lastReset = new Date().getDay();
+    let queue: { time: number, flags: DatabaseFlagsResult }[] = [];
+    const queueName = "botqueue";
 
-	channel.consume(queueName, async msg => {
-		if (!msg || !msg.properties.correlationId) return;
+    channel.assertQueue(queueName, { exclusive: true, durable: true });
 
-		console.log("Consumed message: ", msg.content.toString(), msg.properties.correlationId);
-	});
+    channel.consume(queueName, async msg => {
+        if (!msg || !msg.properties.correlationId) return;
 
-	function sendToQueue(id: string) {
-		channel.sendToQueue(queueName, Buffer.from(id), { correlationId: id, replyTo: queueName });
-	}
+        console.log("Consumed message: ", msg.content.toString(), msg.properties.correlationId);
+    });
 
-	async function resetQueue() {
-		const result = await pool.query("UPDATE flags SET todo = TRUE WHERE todo = FALSE");
-		return result;
-	}
+    function sendToQueue(id: string) {
+        channel.sendToQueue(queueName, Buffer.from(id), { correlationId: id, replyTo: queueName });
+    }
 
-	async function fetchQueue() {
-		const result: any = await pool.query("SELECT * FROM flags WHERE todo = TRUE");
-		return result.rows as DatabaseFlagsResult[];
-	}
+    async function resetQueue() {
+        const result = await pool.query("UPDATE flags SET todo = TRUE WHERE todo = FALSE");
+        return result;
+    }
 
-	async function checkQueue() {
-		const flags = await fetchQueue();
-		
-		for (const result of flags) {
-			const date = new Date();
-			const [start, end] = result.hoursrange.replace(/[\[\]]/g, "").split(",");
+    async function fetchQueue() {
+        const result: any = await pool.query("SELECT * FROM flags WHERE todo = TRUE");
+        return result.rows as DatabaseFlagsResult[];
+    }
 
-			date.setHours(
-				// generate random hour between user specified range
-				Math.floor(Math.random() * (parseInt(end) - parseInt(start))) + parseInt(start), 
-				Math.floor(Math.random() * 59),  // generate random minute
-				Math.floor(Math.random() * 59)   // generate random second
-			);
+    async function checkQueue() {
+        const flags = await fetchQueue();
+        
+        for (const result of flags) {
+            const date = new Date();
+            const [start, end] = result.hoursrange.replace(/[\[\]]/g, "").split(",");
 
-			queue.push({ time: date.getTime(), flags: result });
-		}
+            date.setHours(
+                // generate random hour between user specified range
+                Math.floor(Math.random() * (parseInt(end) - parseInt(start))) + parseInt(start),
+                Math.floor(Math.random() * 59),  // generate random minute
+                Math.floor(Math.random() * 59)   // generate random second
+            );
 
-		const currentTime = new Date().getTime()
+            queue.push({ time: date.getTime(), flags: result });
+        }
 
-		// display all records for debuging purposes
-		for (const q of queue) {
-			if (currentTime	>= q.time) console.log("Time reached!");
-			console.log(new Date(currentTime).toLocaleTimeString("pl"), new Date(q.time).toLocaleTimeString("pl"), q.flags.instaling_user, q.flags.hoursrange, new Date(q.time - currentTime).toTimeString());
-		}
+        const currentTime = new Date().getTime()
+        const newQueue = queue;
 
-			
-	}
+        // display all records for debuging purposes
+        for (const q of queue) {
+            if (currentTime	>= q.time) {
+                console.log(new Date(currentTime).toLocaleTimeString("pl"), new Date(q.time).toLocaleTimeString("pl"), q.flags.instaling_user, q.flags.hoursrange);
+                sendToQueue(q.flags.userid.toString());
+                delete newQueue[newQueue.indexOf(q)];
+            }
+        }
 
-	await resetQueue();
-	await checkQueue();
+        queue = newQueue;
+    }
+
+    setInterval(async () => {
+        const currentDay = new Date().getDay();
+        if (currentDay !== lastReset) {
+            lastReset = currentDay;
+            await resetQueue();
+        }
+
+        await checkQueue();
+    }, 20000)
 }
 
 startWorker();
