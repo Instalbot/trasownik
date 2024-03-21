@@ -1,6 +1,8 @@
 import amqplib from "amqplib";
 import { Pool } from "pg";
 
+import logger from "./logger";
+
 import "dotenv/config";
 
 //--[ INTERFACES ]--------------------------------------------------------------
@@ -104,7 +106,7 @@ async function startWorker() {
         // display all records for debuging purposes
         for (const q of queue) {
             if (currentTime	>= q.time) {
-                console.log(new Date(currentTime).toLocaleTimeString("pl"), new Date(q.time).toLocaleTimeString("pl"), q.flags.instaling_user, q.flags.hoursrange);
+                logger.log(new Date(currentTime).toLocaleTimeString("pl"), new Date(q.time).toLocaleTimeString("pl"), q.flags.instaling_user, q.flags.hoursrange);
                 sendToQueue(q.flags.userid.toString());
                 delete newQueue[newQueue.indexOf(q)];
             }
@@ -121,7 +123,9 @@ async function startWorker() {
         }
 
         await checkQueue();
-    }, 20000)
+    }, 20000);
+
+    logger.ready("Instalbot trasownik is ready!");
 }
 
 startWorker();
