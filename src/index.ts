@@ -63,11 +63,11 @@ async function startWorker() {
 
     channel.assertQueue(queueName, { durable: true });
 
-    channel.consume(queueName, async msg => {
+    /*channel.consume(queueName, async msg => {
         if (!msg || !msg.properties.correlationId) return;
 
         // console.log("Consumed message: ", msg.content.toString(), msg.properties.correlationId);
-    });
+    });*/
 
     function sendToQueue(id: string) {
         channel.sendToQueue(queueName, Buffer.from(id), { correlationId: id, replyTo: queueName });
@@ -121,7 +121,7 @@ async function startWorker() {
         for (const q of queue) {
             if (!q) continue;
 
-            if (currentTime	>= q.time) {
+            if (currentTime >= q.time) {
                 logger.log(date.toLocaleTimeString("pl"), new Date(q.time).toLocaleTimeString("pl"), q.flags.instaling_user, q.flags.hoursrange);
                 sendToQueue(q.flags.userid.toString());
                 delete newQueue[newQueue.indexOf(q)];
