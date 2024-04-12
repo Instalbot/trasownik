@@ -8,13 +8,13 @@ import "dotenv/config";
 //--[ INTERFACES ]--------------------------------------------------------------
 
 interface DatabaseFlagsResult {
-    flagid: number
-    userid: number
-    todo: boolean
-    hoursrange: `[${number},${number}]`
+    flagid:         number
+    userid:         number
+    todo:           boolean
+    hoursrange:     `[${number},${number}]`
     instaling_user: string
     instaling_pass: string
-    error_level: number
+    error_level:    number
 }
 
 //--[ ENV ]---------------------------------------------------------------------
@@ -124,7 +124,7 @@ async function startWorker() {
 
             if (currentTime >= q.time) {
                 logger.log(date.toLocaleTimeString("pl"), new Date(q.time).toLocaleTimeString("pl"), q.flags.instaling_user, q.flags.hoursrange);
-                sendToQueue(q.flags.userid.toString());
+                sendToQueue(q.flags.flagid.toString());
                 delete newQueue[newQueue.indexOf(q)];
             }
         }
