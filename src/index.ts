@@ -8,6 +8,7 @@ import "dotenv/config";
 //--[ INTERFACES ]--------------------------------------------------------------
 
 interface DatabaseFlagsResult {
+    flagid: number
     userid: number
     todo: boolean
     hoursrange: `[${number},${number}]`
